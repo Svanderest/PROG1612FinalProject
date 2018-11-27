@@ -9,6 +9,7 @@ using FinalProject.Data;
 using FinalProject.Models;
 using FinalProject.ViewModels;
 using Microsoft.EntityFrameworkCore.Storage;
+using System.Linq.Expressions;
 
 namespace FinalProject.Controllers
 {
@@ -22,12 +23,69 @@ namespace FinalProject.Controllers
         }
 
         // GET: Members
-        public async Task<IActionResult> Index()
-        {            
-            var finalProjectContext = _context.Member
+        public async Task<IActionResult> Index(string searchString, int? AssignmentID, int? page, string actionButton, int sortDir = 1, string sortField = "First Name")
+        {
+            bool sortDirection = Convert.ToBoolean(sortDir);
+            PopulateDropDownLists();
+            var finalProjectContext = from m in _context.Member
                 .Include(m => m.Assignment)
-                .Include(m => m.Positions).ThenInclude(p => p.Position);
-            return View(await finalProjectContext.ToListAsync());
+                .Include(m => m.Positions).ThenInclude(p => p.Position)
+                select m;
+
+            if (AssignmentID.HasValue)
+                finalProjectContext = finalProjectContext.Where(m => m.AssignmentID == AssignmentID);
+
+            if (!String.IsNullOrEmpty(searchString))
+                finalProjectContext = finalProjectContext.Where(m => m.FirstName.ToUpper().Contains(searchString) || m.LastName.ToUpper().Contains(searchString));
+
+            if (!String.IsNullOrEmpty(actionButton))
+            {
+                page = 1;
+                if (actionButton != "Fileter")
+                {
+                    if (actionButton == sortField)
+                        sortDirection = !sortDirection;
+                    sortField = actionButton;
+                }
+            }
+            switch (sortField)
+            {
+                case "First Name":
+                    if (sortDirection)
+                        finalProjectContext.OrderBy(m => m.FirstName);
+                    else
+                        finalProjectContext.OrderByDescending(m => m.FirstName);
+                    break;
+                case "Last Name":
+                    if (sortDirection)
+                        finalProjectContext.OrderBy(m => m.LastName);
+                    else
+                        finalProjectContext.OrderByDescending(m => m.LastName);
+                    break;
+                case "Phone":
+                    if (sortDirection)
+                        finalProjectContext.OrderBy(m => m.Phone);
+                    else
+                        finalProjectContext.OrderByDescending(m => m.Phone);
+                    break;
+                case "Email":
+                    if (sortDirection)
+                        finalProjectContext.OrderBy(m => m.eMail);
+                    else
+                        finalProjectContext.OrderByDescending(m => m.eMail);
+                    break;
+                case "Assignment":
+                    if (sortDirection)
+                        finalProjectContext.OrderBy(m => m.Assignment.Name);
+                    else
+                        finalProjectContext.OrderByDescending(m => m.Assignment.Name);
+                    break;
+            }
+            ViewData["sortField"] = sortField;
+            ViewData["sortDir"] = Convert.ToInt32(sortDirection);
+            int pageSize = 1;
+            var pagedData = await PaginatedList<Member>.CreateAsync(finalProjectContext.AsNoTracking(), page ?? 1, pageSize);
+            return View(pagedData);
         }
 
         // GET: Members/Details/5

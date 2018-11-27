@@ -4,14 +4,69 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using FinalProject.Models;
+using Microsoft.AspNetCore.Http;
+using System.Threading;
 
 namespace FinalProject.Data
 {
     public class FinalProjectContext : DbContext
     {
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        public string UserName
+        {
+            get; private set;
+        }
+
         public FinalProjectContext (DbContextOptions<FinalProjectContext> options)
             : base(options)
         {
+            UserName = "SeedData";
+        }
+
+        public FinalProjectContext(DbContextOptions<FinalProjectContext> options, IHttpContextAccessor httpContextAccessor)
+            : base(options)
+        {
+            _httpContextAccessor = httpContextAccessor;
+            UserName = _httpContextAccessor.HttpContext?.User.Identity.Name;            
+            UserName = UserName ?? "Unknown";
+        }
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            OnBeforeSaving();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            OnBeforeSaving();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        private void OnBeforeSaving()
+        {
+            var entries = ChangeTracker.Entries();
+            foreach (var entry in entries)
+            {
+                if (entry.Entity is IAuditable trackable)
+                {                    
+                    switch (entry.State)
+                    {
+                        case EntityState.Modified:
+                            trackable.UpdatedOn = DateTime.UtcNow;
+                            trackable.UpdatedBy = UserName;
+                            break;
+
+                        case EntityState.Added:
+                            trackable.CreatedOn = DateTime.UtcNow;
+                            trackable.CreatedBy = UserName;
+                            trackable.UpdatedOn = DateTime.UtcNow;
+                            trackable.UpdatedBy = UserName;
+                            break;
+                    }
+                }
+            }
         }
 
         public DbSet<Assignment> Assignment { get; set; }
