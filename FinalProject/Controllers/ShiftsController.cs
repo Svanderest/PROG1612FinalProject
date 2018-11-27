@@ -60,11 +60,25 @@ namespace FinalProject.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("ID,Date,MemberID,AssignmentID")] Shift shift)
         {
-            if (ModelState.IsValid)
+            try
             {
-                _context.Add(shift);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (ModelState.IsValid)
+                {
+                    _context.Add(shift);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+            catch(DbUpdateException dex)
+            {
+                if (dex.InnerException.Message.Contains("IX"))
+                {
+                    ModelState.AddModelError("Date", "Unable to save changes. You have already assigned this member to a shift on this date.");
+                }
+                else
+                {
+                    ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator.");
+                }
             }
             PopulateDropDownLists(shift);
             return View(shift);
@@ -92,32 +106,67 @@ namespace FinalProject.Controllers
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("ID,Date,MemberID,AssignmentID")] Shift shift)
+        public async Task<IActionResult> Edit(int id, Byte[] RowVersion)// [Bind("ID,Date,MemberID,AssignmentID")] Shift shift)
         {
-            if (id != shift.ID)
+            var shift = await _context.Shift.SingleOrDefaultAsync(s => s.ID == id);
+            if (shift == null)
             {
                 return NotFound();
             }
 
-            if (ModelState.IsValid)
+            if (await TryUpdateModelAsync(shift,"",s => s.Date, s => s.MemberID, s => s.AssignmentID))
             {
                 try
-                {
-                    _context.Update(shift);
+                {                    
                     await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
                 }
-                catch (DbUpdateConcurrencyException)
+                catch (DbUpdateConcurrencyException ex)
                 {
-                    if (!ShiftExists(shift.ID))
+                    var exceptionEntry = ex.Entries.Single();
+                    var clientValues = (Shift)exceptionEntry.Entity;
+                    var databaseEntry = exceptionEntry.GetDatabaseValues();
+                    if (databaseEntry == null)
                     {
-                        return NotFound();
+                        ModelState.AddModelError("",
+                            "Unable to save changes. The Patient was deleted by another user.");
                     }
                     else
                     {
-                        throw;
+                        var databaseValues = (Shift)databaseEntry.ToObject();
+                        if (databaseValues.Date != clientValues.Date)
+                            ModelState.AddModelError("Date", "Current value: "
+                                + databaseValues.Date);
+                        if (databaseValues.MemberID != clientValues.MemberID)
+                        {
+                            Member databaseMember = await _context.Member.SingleOrDefaultAsync(i => i.ID == databaseValues.MemberID);
+                            ModelState.AddModelError("DoctorID", $"Current value: {databaseMember?.FullName}");
+                        }
+                        if (databaseValues.AssignmentID != clientValues.AssignmentID)
+                        {
+                            Assignment databaseAssignment = await _context.Assignment.SingleOrDefaultAsync(i => i.ID == databaseValues.AssignmentID);
+                            ModelState.AddModelError("DoctorID", $"Current value: {databaseAssignment?.Name}");
+                        }
+                        ModelState.AddModelError(string.Empty, "The record you attempted to edit "
+                                + "was modified by another user after you received your values. The "
+                                + "edit operation was canceled and the current values in the database "
+                                + "have been displayed. If you still want to save your version of this record, click "
+                                + "the Save button again. Otherwise click the 'Back to List' hyperlink.");
+                        shift.RowVersion = (byte[])databaseValues.RowVersion;
+                        ModelState.Remove("RowVersion");
                     }
                 }
-                return RedirectToAction(nameof(Index));
+                catch (DbUpdateException dex)
+                {
+                    if (dex.InnerException.Message.Contains("IX"))
+                    {
+                        ModelState.AddModelError("Date", "Unable to save changes. You have already assigned this member to a shift on this date.");
+                    }
+                    else
+                    {
+                        ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator.");
+                    }
+                }
             }
             PopulateDropDownLists(shift);
             return View(shift);
@@ -149,9 +198,18 @@ namespace FinalProject.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var shift = await _context.Shift.FindAsync(id);
-            _context.Shift.Remove(shift);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+            try
+            {
+                _context.Shift.Remove(shift);
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            catch
+            {
+                ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator.");
+            }
+            PopulateDropDownLists(shift);
+            return View(shift);
         }
 
         private bool ShiftExists(int id)

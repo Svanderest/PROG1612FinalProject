@@ -27,6 +27,9 @@
             <th>
                 @Html.DisplayNameFor(model => model.Assignment)
             </th>
+            <th>
+                Positions
+            </th>
             <th></th>
         </tr>
     </thead>
@@ -47,6 +50,12 @@
             </td>
             <td>
                 @Html.DisplayFor(modelItem => item.Assignment.Name)
+            </td>
+            <td>
+                @foreach (var p in item.Positions)
+                {
+                    @p.Position.Title
+                }
             </td>
             <td>
                 <a asp-action="Edit" asp-route-id="@item.ID">Edit</a> |

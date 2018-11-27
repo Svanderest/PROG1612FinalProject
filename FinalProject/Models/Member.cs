@@ -37,6 +37,8 @@ namespace FinalProject.Models
         public virtual Assignment Assignment { get; set; }
 
         public virtual ICollection<Shift> Shifts { get; set; }
+
+        [Display(Name = "Positions")]
         public virtual ICollection<MemberPosition> Positions { get; set; }
 
         [Display(Name = "Member")]

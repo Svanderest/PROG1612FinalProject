@@ -56,11 +56,25 @@ namespace FinalProject.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("ID,Title")] Position position)
         {
-            if (ModelState.IsValid)
+            try
             {
-                _context.Add(position);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                if (ModelState.IsValid)
+                {
+                    _context.Add(position);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+            catch(DbUpdateException dex)
+            {
+                if (dex.InnerException.Message.Contains("IX"))
+                {
+                    ModelState.AddModelError("Titles", "Unable to save changes. Remember, you cannot have duplicate assignment titles.");
+                }
+                else
+                {
+                    ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator.");
+                }
             }
             return View(position);
         }
@@ -86,32 +100,49 @@ namespace FinalProject.Controllers
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("ID,Title")] Position position)
+        public async Task<IActionResult> Edit(int id, Byte[] RowVersion)//, [Bind("ID,Title")] Position position)
         {
-            if (id != position.ID)
+            var position = await _context.Position.SingleOrDefaultAsync(a => a.ID == id);
+            if (position == null)
             {
                 return NotFound();
             }
 
-            if (ModelState.IsValid)
+            if (await TryUpdateModelAsync(position,"",p=>p.Title))
             {
                 try
-                {
-                    _context.Update(position);
+                {                    
                     await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
                 }
-                catch (DbUpdateConcurrencyException)
+                catch (DbUpdateConcurrencyException ex)
                 {
-                    if (!PositionExists(position.ID))
+                    var exceptionEntry = ex.Entries.Single();
+                    var clientValues = (Position)exceptionEntry.Entity;
+                    var databaseEntry = exceptionEntry.GetDatabaseValues();
+                    if (databaseEntry == null)
                     {
-                        return NotFound();
+                        ModelState.AddModelError("",
+                            "Unable to save changes. The Patient was deleted by another user.");
                     }
                     else
                     {
-                        throw;
+                        var databaseValues = (Position)databaseEntry.ToObject();
+                        if (databaseValues.Title != clientValues.Title)
+                            ModelState.AddModelError("Title", "Current value: " + databaseValues.Title);
                     }
                 }
-                return RedirectToAction(nameof(Index));
+                catch(DbUpdateException dex)
+                {
+                    if (dex.InnerException.Message.Contains("IX"))
+                    {
+                        ModelState.AddModelError("Titles", "Unable to save changes. Remember, you cannot have duplicate assignment titles.");
+                    }
+                    else
+                    {
+                        ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator.");
+                    }
+                }
             }
             return View(position);
         }
@@ -140,9 +171,17 @@ namespace FinalProject.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var position = await _context.Position.FindAsync(id);
-            _context.Position.Remove(position);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+            try
+            {
+                _context.Position.Remove(position);
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            catch
+            {
+                ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator.");
+            }
+            return View(position);
         }
 
         private bool PositionExists(int id)
