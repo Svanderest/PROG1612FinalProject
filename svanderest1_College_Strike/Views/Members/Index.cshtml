@@ -1,0 +1,100 @@
+﻿@model PaginatedList<svanderest1_College_Strike.Models.Member>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h2>Index</h2>
+
+<p>
+    <a asp-action="Create">Create New</a>
+</p>
+<form asp-action="Index">
+    <div class="form-horizontal">
+        <div class="row well">
+            <div class="form-group col-md-4">
+                <label class="control-label col-md-6">Select by Assignment:</label>
+                <div class="col-md-6">
+                    @Html.DropDownList("AssignmentID", null, "All Assignments", htmlAttributes: new { @class = "form-control" })
+                </div>
+            </div>
+            <div class="form-group col-md-4">
+                <label class="control-label col-md-7">Search Member Name:</label>
+                <div class="col-md-5">
+                    @Html.TextBox("SearchString", null, new { @class = "form-control" })
+                </div>
+            </div>
+            <div class="col-md-4">
+                <input type="submit" name="actionButton" value="Filter" class="btn btn-default" />
+                <a asp-action="Index">Clear</a>
+            </div>
+        </div>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>
+                    <input type="submit" name="actionButton" value="First Name" class="btn btn-link" />
+                </th>
+                <th>
+                    <input type="submit" name="actionButton" value="Last Name" class="btn btn-link" />
+                </th>
+                <th>
+                    <input type="submit" name="actionButton" value="Phone" class="btn btn-link" />
+                </th>
+                <th>
+                    <input type="submit" name="actionButton" value="Email" class="btn btn-link" />
+                </th>
+                <th>
+                    <input type="submit" name="actionButton" value="Assignment" class="btn btn-link" />
+                </th>
+                <th>
+                    <input type="submit" name="actionButton" value="Positions" class="btn btn-link" disabled />
+                </th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.FirstName)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.LastName)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.Phone)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.eMail)
+                    </td>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.Assignment.Name)
+                    </td>
+                    <td>
+                        @foreach (var p in item.Positions)
+                        {
+                            @p.Position.Title
+                        }
+                    </td>
+                    <td>
+                        <a asp-action="Details" asp-route-id="@item.ID">Details</a>
+                        @if (User.IsInRole("Stward") || User.IsInRole("Admin"))
+                        {
+                            <span>|</span><a asp-action="Edit" asp-route-id="@item.ID">Edit</a>
+                            if (User.IsInRole("Admin"))
+                            {
+                                <span>|</span><a asp-action="Delete" asp-route-id="@item.ID">Delete</a>
+                            }
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <partial name="_PagingNavBar" />
+    <input type="hidden" name="sortDirection" value="@ViewData["sortDir"]" />
+    <input type="hidden" name="sortField" value="@ViewData["sortField"]" />
+</form>
